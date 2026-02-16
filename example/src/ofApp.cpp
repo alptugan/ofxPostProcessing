@@ -55,8 +55,7 @@ void ofApp::draw()
         boxMesh.draw();
         ofPopMatrix();
     }
-    
-    ofDrawAxis(100);
+    ofDrawAxis(120);
     
     // end scene and draw
     post.end();
