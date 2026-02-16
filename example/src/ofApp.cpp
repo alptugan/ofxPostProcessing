@@ -13,8 +13,8 @@ void ofApp::setup()
     post.createPass<KaleidoscopePass>()->setEnabled(false);
     post.createPass<NoiseWarpPass>()->setEnabled(false);
     post.createPass<PixelatePass>()->setEnabled(false);
-    post.createPass<EdgePass>()->setEnabled(false);
-    post.createPass<VerticalTiltShifPass>()->setEnabled(false);
+    //post.createPass<EdgePass>()->setEnabled(false);
+    //post.createPass<VerticalTiltShifPass>()->setEnabled(false);
     post.createPass<GodRaysPass>()->setEnabled(false);
     
     // Setup box positions

@@ -14,7 +14,9 @@ example_PostProcessingManager/bin/*
 !example_PostProcessingManager/bin/data
 
 
-
+example/*
+!example/src
+!example/bin/data/
 
 
 */*/xcuserdata
