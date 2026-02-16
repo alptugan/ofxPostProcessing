@@ -1,5 +1,9 @@
 #pragma once
 
+#include <list>
+#include <string>
+#include <vector>
+
 //#include "ofMain.h"
 #include "ofxPostProcessing.h"
 #include "ofxDC_Utilities.h"
@@ -9,13 +13,13 @@ class ofxPostProcessingManager{
 
 public:
 
-    void setup(int w, int h, string fontName="", int fontSize = 8);
+    void setup(int w, int h, std::string fontName = "", int fontSize = 8);
 
     void updateValues();
 
     void drawGui(int x, int y);
     void hideGui();
-    void setupGui(string fontName, int fontSize);
+    void setupGui(std::string fontName, int fontSize);
 
     void begin();
     void begin(ofCamera& cam);
@@ -24,8 +28,13 @@ public:
 
     void windowResized(int w, int h);
 
-    void saveSettings(string fileName);
-    void loadSettings(string fileName = "");
+    void saveSettings(std::string fileName);
+    void loadSettings(std::string fileName = "");
+
+    void saveSessionState();
+    void loadSessionState();
+
+    void resetAllEffectsToDefaults();
 
     // DISABLE ALL EFFECTS
     void disableAll();
@@ -80,6 +89,10 @@ public:
 private:
 
     void reInit();
+    void applyEffectStates(bool forceDisable = false);
+    void updateEffectGroupStyle(std::size_t index);
+    void resetEffectDefaults(std::size_t index);
+    std::string getSessionFilePath() const;
 
     ofxPostProcessing post;
 
@@ -101,14 +114,23 @@ private:
 
     //ofParameter<string> btnFileName = {"PRESET NAME", "..."};
     ofParameter<void> gdisableAll = {"DISABLE ALL FX"};
+    ofParameter<bool> gBypassAll = {"BYPASS ALL FX", false};
+    ofParameter<void> gResetAll = {"RESET ALL FX"};
 
     void gdisableAllHandler();
+    void gBypassAllHandler(bool & val);
 
-    vector<ofxToggle> gBtnEffSwtich;
-    vector<ofParameterGroup> gEffectGroups; // Parameter grouplar tanımlanacak
+    std::vector<ofxToggle> gBtnEffSwtich;
+    std::vector<ofParameterGroup> gEffectGroups; // Parameter grouplar tanımlanacak
+    std::vector<ofParameter<void>> gBtnResetEffect;
+    std::list<ofEventListener> eResetEffect;
+    ofEventListener eResetAll;
+    ofEventListener eBypassAll;
+    std::vector<bool> bypassSnapshot_;
+    bool hasBypassSnapshot_ = false;
     void gBtnEffSwtichHandler(bool & val);
 
-    string fileName;
+    std::string fileName;
 
 
     // 0 - FXAA

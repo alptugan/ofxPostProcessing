@@ -1,4 +1,8 @@
 
+#include <algorithm>
+
+#include <ofMain.h>
+
 #include "ofxPostProcessingManager.h"
 
 void ofxPostProcessingManager::processOpenFileSelection(ofFileDialogResult openFileResult) {
@@ -10,7 +14,7 @@ void ofxPostProcessingManager::processOpenFileSelection(ofFileDialogResult openF
     if (file.exists()){
 
         ofLogVerbose("The file exists - now checking the type via file extension");
-        string fileExtension = ofToUpper(file.getExtension());
+        std::string fileExtension = ofToUpper(file.getExtension());
 
         //We only want images
         if (fileExtension == "JSON") {
@@ -68,8 +72,211 @@ void ofxPostProcessingManager::loadSettings(std::string fileName) {
     ofLogNotice() << "------------------------------------------------";
 }
 
+std::string ofxPostProcessingManager::getSessionFilePath() const {
+    const std::string dirPath = ofToDataPath("fx", true);
+    ofDirectory dir(dirPath);
+    if (!dir.exists()) {
+        dir.create(true);
+    }
+    return ofFilePath::join(dirPath, "fx_session.json");
+}
+
+void ofxPostProcessingManager::saveSessionState() {
+    if (gBtnEffSwtich.empty()) {
+        return;
+    }
+
+    const std::string path = getSessionFilePath();
+    gui.saveToFile(path);
+    ofLogNotice() << "FX session saved: " << path;
+}
+
+void ofxPostProcessingManager::loadSessionState() {
+    const std::string path = getSessionFilePath();
+    ofFile file(path);
+    if (!file.exists()) {
+        return;
+    }
+
+    gui.loadFromFile(path);
+
+    if (gBypassAll.get()) {
+        bypassSnapshot_.assign(gBtnEffSwtich.size(), false);
+        for (std::size_t i = 0; i < gBtnEffSwtich.size(); ++i) {
+            bypassSnapshot_[i] = gBtnEffSwtich[i];
+        }
+        hasBypassSnapshot_ = true;
+        applyEffectStates(true);
+    } else {
+        hasBypassSnapshot_ = false;
+        applyEffectStates(false);
+    }
+
+    ofLogNotice() << "FX session loaded: " << path;
+}
+
+void ofxPostProcessingManager::applyEffectStates(bool forceDisable) {
+    for (std::size_t i = 0; i < static_cast<std::size_t>(post.size()); ++i) {
+        const bool isEnabled = (!forceDisable) && gBtnEffSwtich[i];
+        post[i]->setEnabled(isEnabled);
+        updateEffectGroupStyle(i);
+    }
+}
+
+void ofxPostProcessingManager::updateEffectGroupStyle(std::size_t index) {
+    const std::string name = gBtnEffSwtich[index].getName();
+    if (gBtnEffSwtich[index] == true) {
+        gui.getGroup(name).setHeaderBackgroundColor(ofColor(0,200,0,150));
+        gui.getGroup(name).setBorderColor(ofColor(0,200,0,150));
+        gui.getGroup(name).setTextColor(ofColor(0,0,0,150));
+    } else {
+        gui.getGroup(name).setHeaderBackgroundColor(ofColor(0,0,0,100));
+        gui.getGroup(name).setBorderColor(ofColor(0,0,0,100));
+        gui.getGroup(name).setTextColor(ofColor(255,255,255,150));
+    }
+}
+
+void ofxPostProcessingManager::resetAllEffectsToDefaults() {
+    for (std::size_t i = 0; i < gBtnEffSwtich.size(); ++i) {
+        resetEffectDefaults(i);
+    }
+}
+
+void ofxPostProcessingManager::resetEffectDefaults(std::size_t index) {
+    switch (index) {
+        case 0:
+            gFxaaDivMin = 128.0f;
+            gFxaaDivMul = 8.0f;
+            gFxaaSpanMax = 8.0f;
+            break;
+        case 1:
+            gBloomBlurX = 0.000953125f;
+            gBloomBlurY = 0.000953125f;
+            break;
+        case 2:
+            gKaleiSegments = 2.0f;
+            break;
+        case 3:
+            gNoiseWrapAmp = 0.1f;
+            gNoiseWrapFreq = 4.0f;
+            gNoiseWrapSpeed = 0.1f;
+            break;
+        case 4:
+            gPixelateX = 100;
+            gPixelateY = 100;
+            break;
+        case 5:
+            gGodRaysLightDotView = 0.3f;
+            gLightPositionOnScreen = glm::vec3(0.0f);
+            break;
+        case 6:
+            gLimbRadScale = 1.2f;
+            gLimbStartColor = glm::vec3(1.0f, 0.0f, 1.0f);
+            gLimbEndColor = glm::vec3(0.0f, 0.0f, 1.0f);
+            break;
+        case 7:
+            gSsaofogEnabled = false;
+            gSsaofogNear = 1.0f;
+            gSsaofogFar = 1000.0f;
+            gSsaocameraNear = 1.0f;
+            gSsaocameraFar = 1000.0f;
+            gSsaoonlyAO = false;
+            gSsaoAoClamp = 0.65f;
+            gSsaoLumInfluence = 0.25f;
+            break;
+        case 8:
+            gZoomCenterXY = glm::vec2(0.5f, 0.5f);
+            gZoomWeight = 0.25f;
+            gZoomDensity = 0.25f;
+            gZoomExposure = 0.48f;
+            break;
+        case 9:
+            gRGBAngle = 0.0f;
+            gRGBAmount = 0.005f;
+            break;
+        case 10:
+            gFilmGrainLCount = 1096.0f;
+            gFilmGrainLGrayScale = false;
+            gFilmGrainLnIntensity = 0.5f;
+            gFilmGrainLsIntensity = 0.5f;
+            break;
+        case 11:
+            gDotScrCenter = glm::vec2(0.5f, 0.5f);
+            gDotScrSize = glm::vec2(2000.0f);
+            gDotScrScale = 1.0f;
+            gDotScrAngle = 1.57f;
+            break;
+        case 12:
+            gGlitchAmount = 0.006f;
+            gGlitchByp = false;
+            gGlitchAngle = 0.02f;
+            gGlitchSeed = 0.02f;
+            gGlitchSeedX = 0.02f;
+            gGlitchSeedY = 0.02f;
+            gGlitchDistX = 0.02f;
+            gGlitchDistY = 0.02f;
+            gGlitchCol = 0.03f;
+            break;
+        case 13:
+            gBadTvDist = 3.0f;
+            gBadTvDist2 = 5.0f;
+            gBadTvSpeed = 3.0f;
+            gBadTvRoll = 0.1f;
+            break;
+        case 14:
+            gcolorACESExp = 1.0f;
+            break;
+        case 15:
+            gNoiseAmt = 0.128f;
+            gNoiseSpeed = 0.08f;
+            break;
+        case 16:
+            gTiltFocus = 0.35f;
+            gTitltRange = 0.5f;
+            gTiltOffset = 0.05f;
+            gTiltStrength = 0.5f;
+            break;
+        case 17:
+            gSupGlowAmt = 0.5f;
+            gSupGlowSize = 4.0f;
+            gSupVigOff = 1.0f;
+            gSupVigDark = 1.0f;
+            gSupBri = 0.0f;
+            gSupCont = 0.0f;
+            gSupSat = 0.0f;
+            gRGBShfAmt = 0.01f;
+            break;
+        case 18:
+            gGliAutoSpeed = 0.6f;
+            gGliAutoAmt = 0.2f;
+            break;
+        case 19:
+            gSpaceColorSpeed = 1.0f;
+            gSpaceColorOpacity = 0.1f;
+            break;
+        case 20:
+            gDitherScale = 1.0f;
+            break;
+        case 21:
+            gStrobberVolume = 1.0f;
+            gStrobberPhase = 0.15f;
+            break;
+        case 22:
+            gRimbCol = glm::vec3(2.9f, 1.3f, 1.3f);
+            gRimbThres = 64.0f;
+            break;
+        case 23:
+            gDofAperture = 0.8f;
+            gDofFocus = 0.985f;
+            gDofMaxBlur = 0.6f;
+            break;
+        default:
+            break;
+    }
+}
+
 //---------------------------------------
-void ofxPostProcessingManager::setup(int w, int h, string f, int fSize){
+void ofxPostProcessingManager::setup(int w, int h, std::string f, int fSize){
 
     post.init(w, h);
 
@@ -177,7 +384,7 @@ void ofxPostProcessingManager::reInit() {
 //---------------------------------------
 void ofxPostProcessingManager::switchFX(int postId) {
     gBtnEffSwtich[postId] = !gBtnEffSwtich[postId];
-    post[postId]->setEnabled(gBtnEffSwtich[postId]);
+    applyEffectStates(gBypassAll.get());
 }
 
 //---------------------------------------
@@ -428,20 +635,7 @@ void ofxPostProcessingManager::end(){
 
 
 void ofxPostProcessingManager::gBtnEffSwtichHandler(bool & val) {
-    for (int i = 0; i < post.size(); i++) {
-        post[i]->setEnabled(gBtnEffSwtich[i]);
-        string name = gBtnEffSwtich[i].getName();//ofSplitString(gBtnEffSwtich[i].getName(), ".")[1];
-
-        if(gBtnEffSwtich[i] == true) {
-            gui.getGroup(name).setHeaderBackgroundColor(ofColor(0,200,0,150));
-            gui.getGroup(name).setBorderColor(ofColor(0,200,0,150));
-            gui.getGroup(name).setTextColor(ofColor(0,0,0,150));
-        }else{
-            gui.getGroup(name).setHeaderBackgroundColor(ofColor(0,0,0,100));
-            gui.getGroup(name).setBorderColor(ofColor(0,0,0,100));
-            gui.getGroup(name).setTextColor(ofColor(255,255,255,150));
-        }
-    }
+    applyEffectStates(gBypassAll.get());
 }
 
 void ofxPostProcessingManager::windowResized(int w, int h) {
@@ -452,20 +646,41 @@ void ofxPostProcessingManager::windowResized(int w, int h) {
 }
 
 void ofxPostProcessingManager::disableAll() {
-    for (int i=0; i < post.size(); i++) {
+    for (int i = 0; i < post.size(); i++) {
         gBtnEffSwtich[i] = false;
-        post[i]->setEnabled(gBtnEffSwtich[i]);
     }
+    applyEffectStates(gBypassAll.get());
 }
 
 void ofxPostProcessingManager::gdisableAllHandler() {
     disableAll();
 }
 
+void ofxPostProcessingManager::gBypassAllHandler(bool & val) {
+    if (val) {
+        bypassSnapshot_.assign(gBtnEffSwtich.size(), false);
+        for (std::size_t i = 0; i < gBtnEffSwtich.size(); ++i) {
+            bypassSnapshot_[i] = gBtnEffSwtich[i];
+        }
+        hasBypassSnapshot_ = true;
+        applyEffectStates(true);
+    } else {
+        if (hasBypassSnapshot_) {
+            const std::size_t count = std::min(gBtnEffSwtich.size(), bypassSnapshot_.size());
+            for (std::size_t i = 0; i < count; ++i) {
+                gBtnEffSwtich[i] = bypassSnapshot_[i];
+            }
+        }
+        applyEffectStates(false);
+    }
+}
+
 //---------------------------------------
-void ofxPostProcessingManager::setupGui(string f, int fSize){
+void ofxPostProcessingManager::setupGui(std::string f, int fSize){
     fileName = "fxSettings.json";
 
+	// bypass ui styling
+    #if 1
     ofFile file(f);
     // Set the fill color
     ofxGuiSetFillColor(ofColor(0,200,0,130));
@@ -473,25 +688,38 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     gui.setDefaultWidth(220);
     gui.setDefaultHeight(12);
     if(f != "" && file.exists()) {
-        if(file.exists()) {
-            gui.loadFont(f, fSize, false);
-        }else{
-            ofLogError(__FUNCTION__) << "file " << f << " not found!";
-        }
+       if(file.exists()) {
+           gui.loadFont(f, fSize, false);
+       }else{
+           ofLogError(__FUNCTION__) << "file " << f << " not found!";
+       }
     }
+    #endif
+
     gui.setup("POST PROCESSING FX", fileName);
-    gui.add(gDebugDraw.setup("ENABLE DEBUG DRAW", false));
-    gui.add(btnRandomize);
-    gui.add(sliderTime);
+    gui.add(gBypassAll);
     gui.add(gdisableAll);
+    gui.add(gResetAll);
     gui.add(btnLoad);
     //gui.add(btnFileName );
     gui.add(btnSave);
+    gui.add(btnRandomize);
+    gui.add(sliderTime);
+    gui.add(gDebugDraw.setup("DEBUG DRAW", false));
 
     for (int i = 0; i < post.size(); i++) {
         gBtnEffSwtich.push_back(ofxToggle());
         gBtnEffSwtich[i].setup(ofToString(i) + " " + post[i]->getName(), false);
         gBtnEffSwtich[i].addListener(this, &ofxPostProcessingManager::gBtnEffSwtichHandler);
+    }
+
+    gBtnResetEffect.resize(post.size());
+    eResetEffect.clear();
+    for (int i = 0; i < post.size(); i++) {
+        gBtnResetEffect[i].set("RESET");
+        eResetEffect.emplace_back(gBtnResetEffect[i].newListener([this, i](const void * sender) {
+            resetEffectDefaults(static_cast<std::size_t>(i));
+        }));
     }
 
     //gui.add(gDoEdgePass.setup("EdgePass", false));
@@ -504,6 +732,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     int cc = 0;
     gFxaaGroup.setName(ofToString(cc) + " " + fxaa->getName());
     gFxaaGroup.add(gBtnEffSwtich[0].getParameter());
+    gFxaaGroup.add(gBtnResetEffect[0]);
     gFxaaGroup.add(gFxaaDivMin.setup("REDUCE MIN DIV", 128.0, 1.0, 512.0 )->getParameter());
     gFxaaGroup.add(gFxaaDivMul.setup("REDUCE MULT DIV", 8.0, 1.0, 128.0 )->getParameter());
     gFxaaGroup.add(gFxaaSpanMax.setup("SPAN MAX", 8.0, 1.0, 128.0 )->getParameter());
@@ -513,6 +742,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     //1-Bloom
     gBloomGroup.setName(ofToString(cc) + " " + bloomPass->getName());
     gBloomGroup.add(gBtnEffSwtich[1].getParameter());
+    gBloomGroup.add(gBtnResetEffect[1]);
     gBloomGroup.add(gBloomBlurX.setup("Blur X", 0.000953125, 0, 0.01 )->getParameter());
     gBloomGroup.add(gBloomBlurY.setup("Blur Y", 0.000953125, 0, 0.01 )->getParameter());
     //gui.add(&gBtnEffSwtich[1]);
@@ -521,6 +751,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     //2-Kaleidoscope
     gKaliGroup.setName(ofToString(cc) + " " + kaleidoscope->getName());
     gKaliGroup.add(gBtnEffSwtich[2].getParameter());
+    gKaliGroup.add(gBtnResetEffect[2]);
     gKaliGroup.add(gKaleiSegments.setup("Segments", 2.f, -20, 20)->getParameter());
     //gui.add(&gBtnEffSwtich[2]);
 
@@ -528,6 +759,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     //3-Noisewarp
     gNoiseWrapGroup.setName(ofToString(cc) + " " + noiseWrap->getName());
     gNoiseWrapGroup.add(gBtnEffSwtich[3].getParameter());
+    gNoiseWrapGroup.add(gBtnResetEffect[3]);
     gNoiseWrapGroup.add(gNoiseWrapAmp.setup("Amplitude", 0.1, 0, 10)->getParameter());
     gNoiseWrapGroup.add(gNoiseWrapFreq.setup("Frequency", 4.0, 0, 20)->getParameter());
     gNoiseWrapGroup.add(gNoiseWrapSpeed.setup("Speed", 0.1, 0, 10)->getParameter());
@@ -537,6 +769,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 4- Pixelate
     gPixelateGroup.setName(ofToString(cc) + " " + pixelate->getName());
     gPixelateGroup.add(gBtnEffSwtich[4].getParameter());
+    gPixelateGroup.add(gBtnResetEffect[4]);
     gPixelateGroup.add(gPixelateX.setup("Horizontal", 100, 0, 1000)->getParameter());
     gPixelateGroup.add(gPixelateY.setup("Vertical", 100, 0, 1000)->getParameter());
     //gui.add(&gBtnEffSwtich[4]);
@@ -545,6 +778,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     //5-GodRays
     gGodRaysGroup.setName(ofToString(cc) + " " + godRays->getName());
     gGodRaysGroup.add(gBtnEffSwtich[5].getParameter());
+    gGodRaysGroup.add(gBtnResetEffect[5]);
     gGodRaysGroup.add(gGodRaysLightDotView.setup("GodRays-Light", 0.3, 0.0, 1.0)->getParameter());
     gGodRaysGroup.add(gLightPositionOnScreen.setup("Light Position", glm::vec3(0), glm::vec3(0), glm::vec3(1))->getParameter());
     //gui.add(&gBtnEffSwtich[5]);
@@ -553,6 +787,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     //6-LimbDarkening
     gLimb.setName(ofToString(cc) + " " + limbDarkening->getName());
     gLimb.add(gBtnEffSwtich[6].getParameter());
+    gLimb.add(gBtnResetEffect[6]);
     //gLimb.add(gLimbBrightness.setup("Brightness", 2.5, 0, 10)->getParameter());
     gLimb.add(gLimbRadScale.setup("Scale", 1.2, 0, 100)->getParameter());
     gLimb.add(gLimbStartColor.setup("Begin Color", glm::vec3(1.), glm::vec3(0.), glm::vec3(1.))->getParameter());
@@ -563,6 +798,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     //7-Ssao
     gSsaoGroup.setName(ofToString(cc) + " " + ssao->getName());
     gSsaoGroup.add(gBtnEffSwtich[7].getParameter());
+    gSsaoGroup.add(gBtnResetEffect[7]);
     gSsaoGroup.add(gSsaofogEnabled.setup("Enable Fog", false)->getParameter());
     gSsaoGroup.add(gSsaofogNear.setup("Fog Near", 1, 0, 2000)->getParameter());
     gSsaoGroup.add(gSsaofogFar.setup("Fog Far", 1000, 0, 2000)->getParameter());
@@ -577,6 +813,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 8- ZoomBlur
     gZoomBlurGroup.setName(ofToString(cc) + " " + zoomBlur->getName());
     gZoomBlurGroup.add(gBtnEffSwtich[8].getParameter());
+    gZoomBlurGroup.add(gBtnResetEffect[8]);
     gZoomBlurGroup.add(gZoomCenterXY.setup("Zoom Center XY", glm::vec2(0.5, 0.5), glm::vec2(0, 0), glm::vec2(1, 1))->getParameter());
     //gui.add(gZoomClamp.setup("Clamp",1,0,1));
     //gui.add(gZoomDecay.setup("Decay",0.9,0,1));
@@ -589,6 +826,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 9- RGB Pass
     gRGBGroup.setName(ofToString(cc) + " " + rgbPass->getName());
     gRGBGroup.add(gBtnEffSwtich[9].getParameter());
+    gRGBGroup.add(gBtnResetEffect[9]);
     gRGBGroup.add(gRGBAngle.setup("Angle", 0, 0, TWO_PI)->getParameter());
     gRGBGroup.add(gRGBAmount.setup("Amount", 0.005,0,1)->getParameter());
     //gui.add(&gBtnEffSwtich[9]);
@@ -597,6 +835,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 10- FilmGrainLines Pass Params
     gFilmGrainGroup.setName(ofToString(cc) + " " + filmGrainLinesPass->getName());
     gFilmGrainGroup.add(gBtnEffSwtich[10].getParameter());
+    gFilmGrainGroup.add(gBtnResetEffect[10]);
     gFilmGrainGroup.add(gFilmGrainLCount.setup("Count", 1096,1, 10000)->getParameter());
     gFilmGrainGroup.add(gFilmGrainLGrayScale.setup("GrayScale",false)->getParameter());
     gFilmGrainGroup.add(gFilmGrainLnIntensity.setup("N Intensity",0.5,0,1)->getParameter());
@@ -607,6 +846,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 11- DotScreen Pass params
     gDotScreenGroup.setName(ofToString(cc) + " " + dotScreenPass->getName());
     gDotScreenGroup.add(gBtnEffSwtich[11].getParameter());
+    gDotScreenGroup.add(gBtnResetEffect[11]);
     gDotScreenGroup.add(gDotScrCenter.setup("Center", glm::vec2(0.5), glm::vec2(0), glm::vec2(1.0,1.0))->getParameter());
     gDotScreenGroup.add(gDotScrSize.setup("Size", glm::vec2(2000), glm::vec2(0), glm::vec2(2000))->getParameter());
     gDotScreenGroup.add(gDotScrScale.setup("Scale",1.0,0,1)->getParameter());
@@ -617,6 +857,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 12- Digital Glitch Pass Params
     gGlicthGroup.setName(ofToString(cc) + " " + glitchPass->getName());
     gGlicthGroup.add(gBtnEffSwtich[12].getParameter());
+    gGlicthGroup.add(gBtnResetEffect[12]);
     gGlicthGroup.add(gGlitchAmount.setup("Amount", 0.006, 0.00001, 0.1)->getParameter());
     gGlicthGroup.add(gGlitchByp.setup("Bypass", false)->getParameter());
     gGlicthGroup.add(gGlitchAngle.setup("Angle", 0.02, 0, TWO_PI)->getParameter());
@@ -632,6 +873,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 13- Bad TV Pass Params
     gBadTVGroup.setName(ofToString(cc) + " " + badTv->getName());
     gBadTVGroup.add(gBtnEffSwtich[13].getParameter());
+    gBadTVGroup.add(gBtnResetEffect[13]);
     gBadTVGroup.add(gBadTvDist.setup("Distortion 1", 3.0, 0.0, 20.0)->getParameter());
     gBadTVGroup.add(gBadTvDist2.setup("Distortion 2", 5.0, 0.0, 20.0)->getParameter());
     gBadTVGroup.add(gBadTvSpeed.setup("Speed", 3.0, 0.0, 20.0)->getParameter());
@@ -642,6 +884,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 14- Color ACES Filmic Filter Paramas
     gcolorACESGroup.setName(ofToString(cc) + " " + colorACES->getName());
     gcolorACESGroup.add(gBtnEffSwtich[14].getParameter());
+    gcolorACESGroup.add(gBtnResetEffect[14]);
     gcolorACESGroup.add(gcolorACESExp.setup("Exposure", 1.0, 0.0, 1.0)->getParameter());
     //gui.add(&gBtnEffSwtich[14]);
 
@@ -649,6 +892,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 15- Noise Grain Filter Params
     gNoiseGroup.setName(ofToString(cc) + " " + noiseGrain->getName());
     gNoiseGroup.add(gBtnEffSwtich[15].getParameter());
+    gNoiseGroup.add(gBtnResetEffect[15]);
     gNoiseGroup.add(gNoiseAmt.setup("Amount", 0.128, 0, 1)->getParameter());
     gNoiseGroup.add(gNoiseSpeed.setup("Speed", 0.08, 0, 1)->getParameter());
     //gui.add(&gBtnEffSwtich[15]);
@@ -657,6 +901,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 16- Tilt Shift Filter Params
     gTiltShiftGroup.setName(ofToString(cc) + " " + tiltShift->getName());
     gTiltShiftGroup.add(gBtnEffSwtich[16].getParameter());
+    gTiltShiftGroup.add(gBtnResetEffect[16]);
     gTiltShiftGroup.add(gTiltFocus.setup("Focus", 0.35, 0, 1)->getParameter());
     gTiltShiftGroup.add(gTitltRange.setup("Range", 0.5, 0, 1)->getParameter());
     gTiltShiftGroup.add(gTiltOffset.setup("Offset", 0.05, 0, 1)->getParameter());
@@ -667,6 +912,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 17- SuperShader Filter Params
     gSupGroup.setName(ofToString(cc) + " " + superShader->getName());
     gSupGroup.add(gBtnEffSwtich[17].getParameter());
+    gSupGroup.add(gBtnResetEffect[17]);
     gSupGroup.add(gSupGlowAmt.setup("Glow Amount", 0.5, 0., 1.)->getParameter());
     gSupGroup.add(gSupGlowSize.setup("Glow Size", 4.0, 0., 20.)->getParameter());
     gSupGroup.add(gSupVigOff.setup("Vignette Offset", 1.0, 0., 1.)->getParameter());
@@ -681,6 +927,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 18- Glitch Automated Filter Params
     gGliAutoGroup.setName(ofToString(cc) + " " + glitchAuto->getName());
     gGliAutoGroup.add(gBtnEffSwtich[18].getParameter());
+    gGliAutoGroup.add(gBtnResetEffect[18]);
     gGliAutoGroup.add(gGliAutoSpeed.setup("Speed", 0.6, 0 , 1)->getParameter());
     gGliAutoGroup.add(gGliAutoAmt.setup("Amount", 0.2, 0 , 1)->getParameter());
     //gui.add(&gBtnEffSwtich[18]);
@@ -689,6 +936,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 19- Space Color
     gSpaceColorGroup.setName(ofToString(cc) + " " + spaceColor->getName());
     gSpaceColorGroup.add(gBtnEffSwtich[19].getParameter());
+    gSpaceColorGroup.add(gBtnResetEffect[19]);
     gSpaceColorGroup.add(gSpaceColorSpeed.setup("Speed", 1, 0, 5)->getParameter());
     gSpaceColorGroup.add(gSpaceColorOpacity.setup("Opacity", 0.1, 0, 1)->getParameter());
     //gui.add(&gBtnEffSwtich[19]);
@@ -697,6 +945,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 20- Dither
     gDitherGroup.setName(ofToString(cc) + " " + dither->getName());
     gDitherGroup.add(gBtnEffSwtich[20].getParameter());
+    gDitherGroup.add(gBtnResetEffect[20]);
     gDitherGroup.add(gDitherScale.setup("Scale", 1, 0, 1)->getParameter());
     //gui.add(&gBtnEffSwtich[20]);
 
@@ -704,6 +953,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 21- Color Invert Strobber
     gStrobberGroup.setName(ofToString(cc) + " " + strobber->getName());
     gStrobberGroup.add(gBtnEffSwtich[21].getParameter());
+    gStrobberGroup.add(gBtnResetEffect[21]);
     gStrobberGroup.add(gStrobberVolume.setup("Volume", 1, 0, 1)->getParameter());
     gStrobberGroup.add(gStrobberPhase.setup("Phase", 0.15, 0, 1)->getParameter());
     //gui.add(&gBtnEffSwtich[21]);
@@ -712,6 +962,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 22- Rimblight Pass
     gRimbLightGroup.setName(ofToString(cc) + " " + rimbShift->getName());
     gRimbLightGroup.add(gBtnEffSwtich[22].getParameter());
+    gRimbLightGroup.add(gBtnResetEffect[22]);
     gRimbLightGroup.add(gRimbCol.setup("Light Color", glm::vec3(2.9, 1.3, 1.3), glm::vec3(0.0), glm::vec3(3.0))->getParameter());
     gRimbLightGroup.add(gRimbThres.setup("Intensity", 64, 0, 512)->getParameter());
     //gui.add(&gBtnEffSwtich[22]);
@@ -720,6 +971,7 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
     // 23- DOF Pass
     gDofGroup.setName(ofToString(cc) + " " + dof->getName());
     gDofGroup.add(gBtnEffSwtich[23].getParameter());
+    gDofGroup.add(gBtnResetEffect[23]);
     gDofGroup.add(gDofAperture.setup("Aperture", 0.8, 0.0, 1.0)->getParameter());
     gDofGroup.add(gDofFocus.setup("Focus", 0.985, 0.0, 1.0)->getParameter());
     gDofGroup.add(gDofMaxBlur.setup("Max Blur", 0.6, 0.0, 1.0)->getParameter());
@@ -768,6 +1020,10 @@ void ofxPostProcessingManager::setupGui(string f, int fSize){
 
     // GUI LISTENERS
     gdisableAll.addListener(this, &ofxPostProcessingManager::gdisableAllHandler);
+    gBypassAll.addListener(this, &ofxPostProcessingManager::gBypassAllHandler);
+    eResetAll = gResetAll.newListener([this](const void * sender) {
+        resetAllEffectsToDefaults();
+    });
     btnLoad.addListener(this,&ofxPostProcessingManager::loadPreset);
     btnSave.addListener(this,&ofxPostProcessingManager::savePresetPressed);
 

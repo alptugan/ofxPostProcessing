@@ -7,8 +7,10 @@ void ofApp::setup(){
     //setup manager
     manager.setup(ofGetWidth(), ofGetHeight(), "VCR_OSD_MONO_1.001.ttf", 8);
 
-    // Load Settings
-    manager.loadSettings();
+	 //Load Settings
+	//manager.loadSettings();
+	manager.loadSessionState();
+
     // Setup box positions
     for (unsigned i = 0; i < NUM_BOXES; ++i)
     {
@@ -22,6 +24,12 @@ void ofApp::setup(){
     // create our own box mesh as there is a bug with
     // normal scaling and ofDrawBox() at the moment
     boxMesh = ofMesh::box(20, 20, 20);
+}
+
+//--------------------------------------------------------------
+void ofApp::exit() {
+	ofLogNotice("ofApp") << "exit()";
+	manager.saveSessionState();
 }
 
 //--------------------------------------------------------------
